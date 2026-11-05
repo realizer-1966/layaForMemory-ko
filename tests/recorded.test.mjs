@@ -8,12 +8,14 @@ import { DEFAULT_POLICY, EVENT_KEY, PAIR_KEY, eventVotes, pairVotes, decide, eve
 const read = (f) => JSON.parse(fs.readFileSync(new URL(`../web/${f}`, import.meta.url)));
 const rec = read("recorded.json"), sc = read("scenarios.json"), { cases } = read("cases.json");
 
-test("recorded answers use the current question wording", () => {
+const recorded = rec.model && Object.keys(rec.answers || {}).length > 0;
+// 녹음 파일이 없으면(한국어판 초기 상태) 계약 검사를 건너뛴다. 파일이 생기면 아래 검사가 그대로 적용된다.
+test("recorded answers use the current question wording", { skip: !recorded && "recorded.json에 아직 녹음된 답변이 없음" }, () => {
   assert.equal(rec.model.eventKey, EVENT_KEY, "event questions changed: re-record");
   assert.equal(rec.model.pairKey, PAIR_KEY, "pair questions changed: re-record");
 });
 
-test("every built-in text has a vector and every event has its kind answer", () => {
+test("every built-in text has a vector and every event has its kind answer", { skip: !recorded && "recorded.json에 아직 녹음된 답변이 없음" }, () => {
   const fill = (t, o) => t.replace(/\{(\w+)\}/g, (_, k) => o[k]);
   const evs = [...sc.playground.events];
   for (const f of sc.app.fields) for (const o of f.options) for (const n of f.options) if (o !== n) evs.push({ text: fill(f.event, { old: o, new: n }), source: "settings" });
@@ -26,7 +28,7 @@ test("every built-in text has a vector and every event has its kind answer", () 
   for (const m of [...sc.playground.memories, ...sc.app.seedMemories]) assert.ok(rec.vectors[m.text], `memory vector: ${m.text}`);
 });
 
-test("default policy on the recorded eval answers: no false invalidations", () => {
+test("default policy on the recorded eval answers: no false invalidations", { skip: !recorded && "recorded.json에 아직 녹음된 답변이 없음" }, () => {
   let strict = 0, lenient = 0, falseInv = 0;
   for (const c of cases) {
     const e = { text: c.event, source: c.evSource }, m = { text: c.memory, source: c.memSource };

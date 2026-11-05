@@ -41,7 +41,7 @@ lab.probe = async (cases, eventQs, pairQs) => {
  * 모든 기억 텍스트(시드 + 후속 기억으로 저장된 사건 텍스트), 그리고 검사 대상이 될 만큼 비슷한 모든 (기억, 사건) 쌍.
  * 모든 텍스트와 질의의 벡터도 담는다. `prev`(현재 recorded.json, 같은 질문 지문)에 있는 답변은 재사용한다.
  */
-lab.record = async (prev = {}) => {
+lab.record = async (prev = {}, scope = "all") => {
   const say = (s) => { st(s); };
   const sc = await (await fetch("./scenarios.json")).json();
   const cases = (await (await fetch("./cases.json")).json()).cases;
@@ -49,15 +49,15 @@ lab.record = async (prev = {}) => {
   const pairs = [], events = new Map(), texts = new Set();
   const addEv = (e) => { events.set(eventCacheKey(e), e); texts.add(e.text); };
   // 평가: 라벨이 붙은 쌍 그대로
-  for (const c of cases) { addEv({ text: c.event, source: c.evSource }); pairs.push([{ text: c.memory, source: c.memSource }, { text: c.event, source: c.evSource }, true]); texts.add(c.memory); }
+  if (scope === "all" || scope === "eval") for (const c of cases) { addEv({ text: c.event, source: c.evSource }); pairs.push([{ text: c.memory, source: c.memSource }, { text: c.event, source: c.evSource }, true]); texts.add(c.memory); }
   // 세계: 모든 사건 x 가능한 모든 기억, 아래에서 유사도로 거른다
   const worlds = [];
-  {
+  if (scope === "all" || scope === "playground") {
     const p = sc.playground;
     const evs = p.events.map((e) => ({ text: e.text, source: e.source }));
     worlds.push({ mems: [...p.memories.map((m) => ({ text: m.text, source: m.source })), ...evs], evs, queries: p.queries });
   }
-  {
+  if (scope === "all" || scope === "app") {
     const a = sc.app, evs = [];
     for (const f of a.fields) for (const o of f.options) for (const n of f.options) if (o !== n) evs.push({ text: fill(f.event, { old: o, new: n }), source: "설정" });
     for (const m of a.messages) evs.push({ text: m.text, source: m.source });
@@ -68,9 +68,15 @@ lab.record = async (prev = {}) => {
   say("임베딩 " + texts.size);
   const list = [...texts], vecs = await lab.emb.embed(list);
   const V = new Map(list.map((t, i) => [t, vecs[i]]));
-  for (const w of worlds) for (const e of w.evs) for (const m of w.mems) {
-    if (m.text === e.text) continue;
-    if (cosine(V.get(m.text), V.get(e.text)) >= DEFAULT_POLICY.minSim) pairs.push([m, e, false]);
+  // 런타임과 같은 후보 규칙: 사건마다 유사도 상위 topK개만(전체 조합은 700쌍이 넘어 녹음이 너무 길다).
+  for (const w of worlds) for (const e of w.evs) {
+    const cand = w.mems
+      .filter((m) => m.text !== e.text)
+      .map((m) => ({ m, sim: cosine(V.get(m.text), V.get(e.text)) }))
+      .filter((x) => x.sim >= DEFAULT_POLICY.minSim)
+      .sort((a, b) => b.sim - a.sim)
+      .slice(0, DEFAULT_POLICY.topK);
+    for (const c of cand) pairs.push([c.m, e, false]);
   }
   const answers = {}; let i = 0; const t0 = performance.now();
   let since = 0;

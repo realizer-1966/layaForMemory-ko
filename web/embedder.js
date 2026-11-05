@@ -15,6 +15,8 @@ export const EMBED_MODEL = {
   maxTokens: 128,
 };
 const CACHE = "rag-embedder-mmminilm-l12";
+/** ?embedBase=... 로 내려받기 위치를 바꿀 수 있다(로컬 미러 등). */
+export const embedBase = () => (new URLSearchParams(location.search).get("embedBase") || EMBED_MODEL.base).replace(/\/?$/, "/");
 
 async function cachedFetch(url, onProgress) {
   let cache = null;
@@ -31,7 +33,7 @@ async function cachedFetch(url, onProgress) {
 const json = (b) => JSON.parse(new TextDecoder().decode(b));
 
 export async function embedderCached() {
-  try { const c = await caches.open(CACHE); return !!(await c.match(EMBED_MODEL.base + EMBED_MODEL.onnx)); } catch { return false; }
+  try { const c = await caches.open(CACHE); return !!(await c.match(embedBase() + EMBED_MODEL.onnx)); } catch { return false; }
 }
 
 /** @returns { embed(texts: string[]) => Promise<Float32Array[]>, dim, id, info } */
@@ -40,9 +42,9 @@ export async function loadEmbedder({ onStatus = () => {}, onProgress = () => {} 
   ort.env.wasm.numThreads = self.crossOriginIsolated ? Math.min(4, navigator.hardwareConcurrency || 2) : 1;
   const t0 = performance.now();
   onStatus("검색기 모델을 읽는 중…");
-  const [tj, tc] = await Promise.all(["tokenizer.json", "tokenizer_config.json"].map((f) => cachedFetch(EMBED_MODEL.base + f).then((r) => json(r.bytes))));
+  const [tj, tc] = await Promise.all(["tokenizer.json", "tokenizer_config.json"].map((f) => cachedFetch(embedBase() + f).then((r) => json(r.bytes))));
   const tokenizer = new Tokenizer(tj, tc);
-  const model = await cachedFetch(EMBED_MODEL.base + EMBED_MODEL.onnx, (got, total) => {
+  const model = await cachedFetch(embedBase() + EMBED_MODEL.onnx, (got, total) => {
     onProgress(total ? got / total : null);
     onStatus(`검색기 내려받는 중: ${(got / 1048576).toFixed(1)} / ${(total / 1048576).toFixed(1)} MB`);
   });

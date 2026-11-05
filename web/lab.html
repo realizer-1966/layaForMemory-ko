@@ -73,14 +73,20 @@ lab.record = async (prev = {}) => {
     if (cosine(V.get(m.text), V.get(e.text)) >= DEFAULT_POLICY.minSim) pairs.push([m, e, false]);
   }
   const answers = {}; let i = 0; const t0 = performance.now();
+  let since = 0;
+  const save = async () => {
+    try { localStorage.setItem("lm.rec", JSON.stringify(answers)); } catch {}
+    try { await fetch("http://127.0.0.1:8770/", { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify({ answers }) }); } catch {}
+  };
   const evList = [...events.values()];
-  for (const e of evList) { const k = eventCacheKey(e); answers[k] = prev[k] || compactAnswers((await lab.laya.systemOne(eventState(e), QUESTIONS.event)).answers); say(`사건 ${++i}/${evList.length}`); }
+  for (const e of evList) { const k = eventCacheKey(e); answers[k] = prev[k] || compactAnswers((await lab.laya.systemOne(eventState(e), QUESTIONS.event)).answers); say(`사건 ${++i}/${evList.length}`); if (++since % 5 === 0) await save(); }
   i = 0;
   for (const [m, e] of pairs) {
     const k = pairCacheKey(m, e);
     if (!answers[k]) answers[k] = prev[k] || compactAnswers((await lab.laya.systemOne(pairState(m, e), QUESTIONS.pair)).answers);
-    say(`쌍 ${++i}/${pairs.length}`);
+    say(`쌍 ${++i}/${pairs.length}`); if (++since % 5 === 0) await save();
   }
+  await save();
   return {
     version: 1,
     note: "Laya 답변과 다국어 MiniLM 벡터를 녹음한 파일. 키는 질문 지문 | 출처 | 텍스트.",

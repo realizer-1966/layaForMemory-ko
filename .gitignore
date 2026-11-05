@@ -2,3 +2,6 @@ node_modules/
 dist/
 .cache/
 __pycache__/
+
+dist/model-multilingual/
+dist/embed/

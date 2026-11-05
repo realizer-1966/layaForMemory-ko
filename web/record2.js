@@ -10,9 +10,10 @@ export async function recordAll({ prev = {}, scope = "all", onStatus = () => {} 
   const cases = (await (await fetch("./cases.json")).json()).cases;
   const fill = (t, o) => t.replace(/\{(\w+)\}/g, (_, k) => o[k]);
   const pairs = [], events = new Map(), texts = new Set();
+  const has = (n) => scope === "all" || (Array.isArray(scope) ? scope.includes(n) : scope === n);
   const addEv = (e) => { events.set(eventCacheKey(e), e); texts.add(e.text); };
 
-  if (scope === "all" || scope === "eval") {
+  if (has("eval")) {
     for (const c of cases) {
       addEv({ text: c.event, source: c.evSource });
       pairs.push([{ text: c.memory, source: c.memSource }, { text: c.event, source: c.evSource }]);
@@ -20,12 +21,12 @@ export async function recordAll({ prev = {}, scope = "all", onStatus = () => {} 
     }
   }
   const worlds = [];
-  if (scope === "all" || scope === "playground") {
+  if (has("playground")) {
     const p = sc.playground;
     const evs = p.events.map((e) => ({ text: e.text, source: e.source }));
     worlds.push({ mems: [...p.memories.map((m) => ({ text: m.text, source: m.source })), ...evs], evs, queries: p.queries });
   }
-  if (scope === "all" || scope === "app") {
+  if (has("app")) {
     const a = sc.app, evs = [];
     for (const f of a.fields) for (const o of f.options) for (const n of f.options) if (o !== n) evs.push({ text: fill(f.event, { old: o, new: n }), source: "설정" });
     for (const m of a.messages) evs.push({ text: m.text, source: m.source });

@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Laya Memory · 한국어판</title>
+<meta name="description" content="브라우저에서 도는 에이전트 기억 무효화: Laya 타입 판정 모델이 저장된 기억이 대체되었는지, 반박되었는지, 여전히 맞는지 판단합니다. 기억, 사용자 행동 사건, 감사 원장은 IndexedDB에만 저장됩니다.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%237c3aed'/%3E%3Cpath d='M9 11h14M9 16h9M9 21h14' stroke='white' stroke-width='2.6' stroke-linecap='round'/%3E%3Cpath d='M20 14l5 5' stroke='white' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E">
+<script src="./coi.js"></script>
+<link rel="stylesheet" href="./styles.css">
+<link rel="stylesheet" href="./memory.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <svg viewBox="0 0 32 32" width="28" height="28" aria-hidden="true"><rect width="32" height="32" rx="7" class="logo-bg"/><path d="M9 11h14M9 16h9M9 21h14" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><path d="M20 13.5l5 5" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/></svg>
+    <div>
+      <h1>Laya Memory</h1>
+      <p>에이전트 기억의 무효화 계층: 낡은 사실은 고쳐 쓰지 않고 표시만 합니다. 모두 브라우저 안에서</p>
+    </div>
+  </div>
+  <div class="topright">
+    <nav class="nav" aria-label="페이지"><a href="./index.html" aria-current="page">놀이터</a><a href="./app.html">사용자 행동</a><a href="./eval.html">평가</a></nav>
+    <div class="modelpill" id="modelPill" role="status"><span class="dot"></span><span id="modelPillText">모델 미로드</span></div>
+  </div>
+</header>
+
+<section class="card modelcard" id="modelCard">
+  <div class="modelrow">
+    <div class="field">
+      <label for="variant">판정 모델 빌드 (Laya)</label>
+      <select id="variant"><option>매니페스트 읽는 중…</option></select>
+    </div>
+    <div class="field">
+      <label for="backend">백엔드</label>
+      <select id="backend">
+        <option value="auto">자동 (int4면 WebGPU, 아니면 WASM)</option>
+        <option value="wasm">WASM (CPU)</option>
+        <option value="webgpu">WebGPU (int4 빌드 전용)</option>
+      </select>
+    </div>
+    <button id="loadBtn" class="primary" disabled data-track="load-models">모델 불러오기</button>
+  </div>
+  <div class="progress" id="progress" hidden><div id="progressBar"></div></div>
+  <p class="status" id="status">판정: <a id="modelLink" target="_blank" rel="noopener"></a>. 임베딩: <a id="embedLink" target="_blank" rel="noopener"></a><span id="embedState"></span>. 둘 다 한 번만 내려받고 브라우저가 캐시합니다. 그 전에는 내장 데모가 같은 모델로 녹음한 답변을 재생합니다.</p>
+  <div class="badges" id="badges"></div>
+</section>
+
+<div class="layout">
+  <aside class="side">
+    <section class="card">
+      <h2>데모 실행</h2>
+      <p class="hint">기억 6개를 저장한 뒤 사건 6개를 보냅니다: 장애, 질문, 프롬프트 인젝션, 데이터베이스 마이그레이션, 소유권 이전, 새 요청 한도. 어떤 기억이 움직이는지 보세요.</p>
+      <div class="btnrow">
+        <button id="demoBtn" class="primary" data-track="run-demo">데모 실행</button>
+        <button id="stepBtn" data-track="demo-step">한 단계</button>
+      </div>
+      <p class="hint" id="demoState"></p>
+    </section>
+
+    <section class="card">
+      <h2>기억 저장</h2>
+      <div class="field"><label for="memText">사실 (원문 그대로 저장, 절대 수정하지 않음)</label>
+        <textarea id="memText" rows="2" placeholder="예: 팀의 주 데이터베이스는 Postgres다"></textarea></div>
+      <div class="row3">
+        <div class="field"><label for="memSource">출처</label><select id="memSource" data-track="mem-source"><option>채팅</option><option>위키</option><option>슬랙</option><option>문서</option><option>프로필</option><option>이메일</option></select></div>
+        <div class="field"><label for="memKind">종류</label><select id="memKind" data-track="mem-kind"><option>사실</option><option>선호</option><option>절차</option><option>소유</option><option>일정</option></select></div>
+        <div class="field"><label for="memTtl">임대</label><select id="memTtl" data-track="mem-ttl"><option value="">없음</option><option value="60">1분</option><option value="3600">1시간</option><option value="86400">1일</option></select></div>
+      </div>
+      <button id="rememberBtn" data-track="remember">기억하기</button>
+    </section>
+
+    <section class="card">
+      <h2>사건 관찰</h2>
+      <div class="examples" id="eventChips" aria-label="예시 사건"></div>
+      <div class="field"><label for="evText">누군가 말했거나 일어난 일</label>
+        <textarea id="evText" rows="2" placeholder="예: 지난 화요일에 주 데이터베이스를 SQLite로 마이그레이션했다"></textarea></div>
+      <div class="field"><label for="evSource">출처</label><select id="evSource" data-track="ev-source"><option>슬랙</option><option>채팅</option><option>이메일</option><option>지라</option><option>깃허브</option><option>변경로그</option><option>웹훅</option></select></div>
+      <label class="check"><input type="checkbox" id="succ" checked data-track="successor"> 사건 내용을 대체된 기억의 후속 기억으로 저장</label>
+      <label class="check"><input type="checkbox" id="dry" data-track="dry-run"> 드라이 런 (판정만 보고 아무것도 바꾸지 않음)</label>
+      <button id="observeBtn" class="primary" data-track="observe">관찰</button>
+    </section>
+
+    <section class="card">
+      <h2>회상</h2>
+      <div class="examples" id="queryChips" aria-label="예시 질문"></div>
+      <div class="field"><label for="query">질문</label><input type="text" id="query" placeholder="예: 새 서비스는 어떤 데이터베이스를 써야 하나?"></div>
+      <label class="check"><input type="checkbox" id="incReview" data-track="include-review"> 검토가 필요한 기억도 포함</label>
+      <button id="recallBtn" data-track="recall">회상</button>
+      <div id="recallOut"></div>
+    </section>
+
+    <section class="card">
+      <h2>모드와 데이터</h2>
+      <div class="field"><label id="modeLbl">사건을 언제 검사할지</label>
+        <div class="seg" role="radiogroup" aria-labelledby="modeLbl">
+          <label><input type="radio" name="mode" value="eager" checked data-track="mode">즉시: 들어올 때</label>
+          <label><input type="radio" name="mode" value="lazy" data-track="mode">지연: 회상할 때</label>
+        </div>
+        <p class="hint">지연 모드는 사건을 공짜로 기록해 두고, 회상이 돌려주려는 기억에 대해서만 검사합니다.</p>
+      </div>
+      <div class="btnrow">
+        <button id="sweepBtn" data-track="sweep">Sweep (임대 + 밀린 검사)</button>
+        <button id="exportBtn" class="ghost" data-track="export">내보내기</button>
+        <label class="filebtn ghost">가져오기<input type="file" id="importFile" accept=".json,application/json" hidden></label>
+        <button id="clearBtn" class="ghost" data-track="clear">지우기</button>
+      </div>
+      <p class="hint" id="storeInfo"></p>
+    </section>
+  </aside>
+
+  <main class="main">
+    <section class="card">
+      <h2>최근 검사</h2>
+      <div id="report"><p class="placeholder">사건을 관찰하거나 데모를 실행하세요. 먼저 사건의 종류(보고, 질문, 계획, 명령)를 분류하고, 그다음 비슷한 기억마다 네 가지 질문으로 대조합니다.</p></div>
+    </section>
+    <section class="card tabcard">
+      <div class="tabs" role="tablist">
+        <button role="tab" aria-selected="true" data-tab="memories" data-track="tab-memories">기억 <span class="count" id="cMem"></span></button>
+        <button role="tab" aria-selected="false" data-tab="review" data-track="tab-review">검토 대기열 <span class="count" id="cRev"></span></button>
+        <button role="tab" aria-selected="false" data-tab="events" data-track="tab-events">사건 <span class="count" id="cEv"></span></button>
+        <button role="tab" aria-selected="false" data-tab="ledger" data-track="tab-ledger">원장 <span class="count" id="cLed"></span></button>
+      </div>
+      <div class="panel" id="tab-memories"></div>
+      <div class="panel" id="tab-review" hidden></div>
+      <div class="panel" id="tab-events" hidden></div>
+      <div class="panel" id="tab-ledger" hidden></div>
+    </section>
+  </main>
+</div>
+
+<footer class="foot">
+  <a href="https://github.com/chopratejas/invalidate" target="_blank" rel="noopener">invalidate</a>의 설계를 브라우저용으로 다시 만든 <a href="https://huggingface.co/convaiinnovations/laya-multilingual" target="_blank" rel="noopener">Laya 타입 판정 모델</a> 기반 한국어판입니다. 기억, 사건, 원장은 이 브라우저의 IndexedDB에, 모델 파일은 Cache Storage에 저장됩니다. 어디로도 전송되지 않습니다. 원본: <a href="https://github.com/vishalmysore/layaForMemory" target="_blank" rel="noopener">vishalmysore/layaForMemory</a>. <a href="./NOTICE.txt">고지와 라이선스</a>.
+</footer>
+<script type="module" src="./playground.js"></script>
+</body>
+</html>

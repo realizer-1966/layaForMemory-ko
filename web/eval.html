@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Laya Memory · 평가</title>
+<meta name="description" content="Laya는 기억이 낡았는지 얼마나 잘 판단할까? 정답을 붙인 (기억, 사건) 62쌍을 조절 가능한 정책 임계값으로 실시간 채점합니다.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%237c3aed'/%3E%3Cpath d='M9 11h14M9 16h9M9 21h14' stroke='white' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E">
+<script src="./coi.js"></script>
+<link rel="stylesheet" href="./styles.css">
+<link rel="stylesheet" href="./memory.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <svg viewBox="0 0 32 32" width="28" height="28" aria-hidden="true"><rect width="32" height="32" rx="7" class="logo-bg"/><path d="M9 11h14M9 16h9M9 21h14" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><path d="M20 13.5l5 5" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/></svg>
+    <div>
+      <h1>Laya Memory</h1>
+      <p>Laya는 기억의 운명을 얼마나 자주 맞힐까?</p>
+    </div>
+  </div>
+  <div class="topright">
+    <nav class="nav" aria-label="페이지"><a href="./index.html">놀이터</a><a href="./app.html">사용자 행동</a><a href="./eval.html" aria-current="page">평가</a></nav>
+    <div class="modelpill" id="modelPill" role="status"><span class="dot"></span><span id="modelPillText">모델 미로드</span></div>
+  </div>
+</header>
+
+<section class="card modelcard" id="modelCard">
+  <div class="modelrow">
+    <div class="field"><label for="variant">판정 모델 빌드 (Laya)</label><select id="variant"><option>매니페스트 읽는 중…</option></select></div>
+    <div class="field"><label for="backend">백엔드</label>
+      <select id="backend"><option value="auto">자동 (int4면 WebGPU, 아니면 WASM)</option><option value="wasm">WASM (CPU)</option><option value="webgpu">WebGPU (int4 빌드 전용)</option></select></div>
+    <button id="loadBtn" class="primary" disabled>모델 불러오기</button>
+  </div>
+  <div class="progress" id="progress" hidden><div id="progressBar"></div></div>
+  <p class="status" id="status">판정: <a id="modelLink" target="_blank" rel="noopener"></a>. 임베딩: <a id="embedLink" target="_blank" rel="noopener"></a><span id="embedState"></span>. 아래 점수는 이 한국어판에서 녹음한 답변에서 나옵니다. 모델을 불러오고 실행을 누르면 직접 측정할 수 있습니다.</p>
+  <div class="badges" id="badges"></div>
+</section>
+
+<div class="layout">
+  <aside class="side">
+    <section class="card">
+      <h2>정책</h2>
+      <p class="hint">슬라이더를 움직이면 저장된 답변으로 즉시 다시 채점합니다. 모델을 다시 호출하지 않습니다.</p>
+      <div class="sliders" id="sliders"></div>
+      <div class="btnrow"><button id="resetPolicy" class="ghost">기본값으로</button></div>
+    </section>
+    <section class="card">
+      <h2>실행</h2>
+      <p class="hint" id="runInfo"></p>
+      <div class="btnrow"><button id="runBtn" class="primary" disabled>불러온 모델로 62개 사례 모두 실행</button></div>
+      <div class="progress" id="runProg" hidden><div id="runBar"></div></div>
+    </section>
+    <section class="card">
+      <h2>무엇을 채점하나</h2>
+      <p class="hint"><b>엄격</b>: 판정이 정답과 같음. <b>관대</b>: 낡은 기억(대체·반박·검토 필요)은 그 셋 중 아무거나, 유지되는 기억(확인·무관)은 그 둘 중 아무거나 맞히면 되고, 질문과 명령은 알아보기만 하면 됨. <b>잘못된 무효화</b>: 아직 사실인 기억을 대체·반박으로 표시하는 것 — 이 정책이 가장 피하려는 실수.</p>
+    </section>
+  </aside>
+  <main class="main">
+    <section class="card"><div class="kpis" id="kpis"></div></section>
+    <section class="card">
+      <h2>혼동 행렬 <span class="muted" style="font-weight:400;font-size:12.5px">행: 정답 · 열: 판정</span></h2>
+      <div class="tablewrap" id="cm"></div>
+    </section>
+    <section class="card">
+      <h2>모든 사례</h2>
+      <div class="filters btnrow"><select id="filter"><option value="all">모든 사례</option><option value="wrong">엄격히 틀림</option><option value="false">잘못된 무효화</option></select></div>
+      <div class="tablewrap" id="cases"></div>
+    </section>
+  </main>
+</div>
+<footer class="foot">62개 사례는 손으로 쓴 가상 사례(<code>cases.json</code>)이며 벤치마크가 아니라 스모크 테스트입니다. 기본 임계값도 이 사례에 맞춰 조정했습니다. 2겹 교차 확인은 README를 보세요. <a href="./NOTICE.txt">고지와 라이선스</a>.</footer>
+<script type="module" src="./eval.js"></script>
+</body>
+</html>
